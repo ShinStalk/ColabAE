@@ -3,7 +3,8 @@ import tensorflow as tf
 from keras.losses import Loss
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(BASE_DIR, 'Ops\\approxmatch'))
+ROOT_DIR = os.path.dirname(BASE_DIR)
+sys.path.append(os.path.join(ROOT_DIR, 'Ops/approxmatch'))
 
 import tf_approxmatch
 
