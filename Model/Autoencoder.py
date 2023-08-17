@@ -1,7 +1,6 @@
 import os
 import sys
-from keras import Model, Input
-from tensorflow.keras.optimizers import Adam
+from keras import Model
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, 'Encoder'))
@@ -14,9 +13,6 @@ class PointNetAutoencoder:
     def __init__(self, input):
         self.input = input
         self.model = None
-
-    def compile(self, loss, learning_rate=0.0001):
-        self.model.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss)
 
     def build(self):
         encoder_model = PointNet(self.input).build()
