@@ -1,7 +1,7 @@
 import os
 import sys
-from keras.layers import Reshape, Dense
-from keras.models import Model, Input
+from keras.layers import Reshape, Dense, Input
+from keras import Model
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
