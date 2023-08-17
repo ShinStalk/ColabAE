@@ -16,7 +16,7 @@ class PointNetAutoencoder:
         self.model = None
 
     def compile(self, loss, learning_rate=0.0001):
-        self.model.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss)
+        self.model.compile(optimizer=Adam(learning_rate=learning_rate), loss=loss())
 
     def build(self):
         encoder_model = PointNet(self.input).build()
