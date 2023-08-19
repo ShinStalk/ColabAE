@@ -6,7 +6,7 @@ from keras import Model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
 
-from Layers import conv2d
+from Layers import tf2_conv2d
 
 
 class PointNet:
@@ -18,11 +18,11 @@ class PointNet:
         point_dim = self.input.shape[2]
 
         # Encoder
-        net = conv2d(self.input, 64, (1, point_dim))
-        net = conv2d(net, 64, [1, 1])
-        point_feature = conv2d(net, 64, (1, 1))
-        net = conv2d(point_feature, 128, (1, 1))
-        net = conv2d(net, 1024, (1, 1))
+        net = tf2_conv2d(self.input, 64, (1, point_dim))
+        net = tf2_conv2d(net, 64, [1, 1])
+        point_feature = tf2_conv2d(net, 64, (1, 1))
+        net = tf2_conv2d(point_feature, 128, (1, 1))
+        net = tf2_conv2d(net, 1024, (1, 1))
 
         global_feat = MaxPooling2D(pool_size=(num_point, 1))(net)
 

@@ -6,7 +6,7 @@ from keras import Model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
 
-from Layers import fully_connected
+from Layers import tf2_fully_connected
 
 
 class FC:
@@ -17,8 +17,8 @@ class FC:
         num_point = self.input.shape[1]
 
         # FC Decoder
-        net = fully_connected(self.input, 1024)
-        net = fully_connected(net, 1024)
+        net = tf2_fully_connected(self.input, 1024)
+        net = tf2_fully_connected(net, 1024)
         net = Dense(num_point * 3)(net)
 
         net = Reshape((num_point, 3))(net)
