@@ -11,7 +11,7 @@ LINK_FLAGS=($(python -c "import tensorflow as tf; print(' '.join(tf.sysconfig.ge
 COMPILE_FLAGS=($(python -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_compile_flags()))"))
 
 # List of operation/library names
-OP_NAMES=("approxmatch" "anotherop" "yetanotherop")  # Add more names as required
+OP_NAMES=("approxmatch")  # Add more names as required ex: ("approxmatch" "another_op")
 
 for OP_NAME in "${OP_NAMES[@]}"; do
     OP_DIR="$BASE_DIR/$OP_NAME"
