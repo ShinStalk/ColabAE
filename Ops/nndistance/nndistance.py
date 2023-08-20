@@ -9,7 +9,7 @@ from tensorflow.python.framework import ops
 import sys
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-nn_distance_module=tf.load_op_library(os.path.join(BASE_DIR, 'nndistance_so.so'))
+nn_distance_module=tf.load_op_library(os.path.join(BASE_DIR, 'nndistance.so'))
 
 def nn_distance(xyz1,xyz2):
     '''
@@ -58,7 +58,7 @@ if __name__=='__main__':
         t0=time.time()
         t1=t0
         best=1e100
-        for i in xrange(100):
+        for i in range(100):
             trainloss,_=sess.run([loss,train])
             newt=time.time()
             best=min(best,newt-t1)

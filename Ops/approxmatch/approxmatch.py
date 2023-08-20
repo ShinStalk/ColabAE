@@ -9,7 +9,7 @@ from tensorflow.python.framework import ops
 import sys
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-approxmatch_module=tf.load_op_library(os.path.join(BASE_DIR, 'approxmatch_so.so'))
+approxmatch_module=tf.load_op_library(os.path.join(BASE_DIR, 'approxmatch.so'))
 def approx_match(xyz1,xyz2):
 	'''
 input:
@@ -77,7 +77,7 @@ if __name__=='__main__':
 		while True:
 			meanloss=0
 			meantrueloss=0
-			for i in xrange(1001):
+			for i in range(1001):
 				#phi=np.random.rand(4*npoint)*math.pi*2
 				#tpoints=(np.hstack([np.cos(phi)[:,None],np.sin(phi)[:,None],(phi*0)[:,None]])*random.random())[None,:,:]
 				#tpoints=((np.random.rand(400)-0.5)[:,None]*[0,2,0]+[(random.random()-0.5)*2,0,0]).astype('float32')[None,:,:]

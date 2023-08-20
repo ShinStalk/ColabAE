@@ -3,7 +3,7 @@ from tensorflow.python.framework import ops
 import sys
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-interpolate_module = tf.load_op_library(os.path.join(BASE_DIR, 'build/Release/interpolate.dll'))
+interpolate_module = tf.load_op_library(os.path.join(BASE_DIR, 'interpolate.so'))
 def three_nn(xyz1, xyz2):
     '''
     Input:
