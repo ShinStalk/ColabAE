@@ -1,1 +1,0 @@
-"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.2\bin\nvcc" tf_sampling_g.cu -o tf_sampling_g.cu.o -c -MD -O2 -DNDEBUG -DGOOGLE_CUDA=1 -x cu
