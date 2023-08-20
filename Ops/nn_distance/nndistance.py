@@ -9,7 +9,7 @@ from tensorflow.python.framework import ops
 import sys
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-nn_distance_module=tf.load_op_library(os.path.join(BASE_DIR, 'tf_nndistance_so.so'))
+nn_distance_module=tf.load_op_library(os.path.join(BASE_DIR, 'nndistance_so.so'))
 
 def nn_distance(xyz1,xyz2):
     '''
