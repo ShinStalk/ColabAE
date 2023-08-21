@@ -26,9 +26,15 @@ REGISTER_OP("ThreeInterpolate")
     .Output("out: float32")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
         ::tensorflow::shape_inference::ShapeHandle dims1; // (b,m,c)
-        c->WithRank(c->input(0), 3, &dims1);
+        tsl::Status status1 = c->WithRank(c->input(0), 3, &dims1);
+        if (!status1.ok()) {
+            return status1;
+        }
         ::tensorflow::shape_inference::ShapeHandle dims2; // (b,n,3)
-        c->WithRank(c->input(1), 3, &dims2);
+        tsl::Status status2 = c->WithRank(c->input(1), 3, &dims2);
+        if (!status2.ok()) {
+            return status2;
+        }
         // (b,n,c)
         ::tensorflow::shape_inference::ShapeHandle output = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims2, 1), c->Dim(dims1, 2)});
         c->set_output(0, output);
