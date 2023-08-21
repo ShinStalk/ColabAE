@@ -12,7 +12,7 @@ COMPILE_FLAGS=($(python -c "import tensorflow as tf; print(' '.join(tf.sysconfig
 
 # Associative array of operation/library names
 declare -A OP_NAMES
-OP_NAMES=( ["approxmatch"]=1 ["grouping"]=1 ["interpolate"]=0 ["nndistance"]=1)  # 1: CUDA, 0: NO CUDA
+OP_NAMES=( ["approxmatch"]=1 ["grouping"]=1 ["interpolate"]=0 ["sampling"]=1 ["nndistance"]=1)  # 1: CUDA, 0: NO CUDA
 
 for OP_NAME in "${!OP_NAMES[@]}"; do
     OP_DIR="$BASE_DIR/$OP_NAME"
