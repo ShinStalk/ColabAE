@@ -8,7 +8,7 @@ from tensorflow.python.framework import ops
 import sys
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sampling_module = tf.load_op_library(os.path.join(BASE_DIR, 'build/Release/sampling.dll'))
+sampling_module = tf.load_op_library(os.path.join(BASE_DIR, 'sampling_so.so'))
 def prob_sample(inp,inpr):
     '''
 input:
