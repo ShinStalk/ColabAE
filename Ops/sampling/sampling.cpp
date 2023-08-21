@@ -17,7 +17,6 @@ REGISTER_OP("ProbSample")
   .Output("out: int32")
   .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
     ::tensorflow::shape_inference::ShapeHandle dims1; // batch_size * ncategory
-    c->WithRank(c->input(0), 2, &dims1);
     tsl::Status status1 = c->WithRank(c->input(0), 2, &dims1);
     if (!status1.ok()) {
         return status1;
