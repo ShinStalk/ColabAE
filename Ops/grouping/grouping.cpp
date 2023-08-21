@@ -53,8 +53,8 @@ REGISTER_OP("GroupPoint")
         }
         ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * npoints * nsample
         tsl::Status status2 = c->WithRank(c->input(1), 3, &dims2);
-        if (!status.ok()) {
-            return status;
+        if (!status2.ok()) {
+            return status2;
         }
         // batch_size * npoints * nsample * channels
         ::tensorflow::shape_inference::ShapeHandle output = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), c->Dim(dims2, 2), c->Dim(dims1, 2)});
