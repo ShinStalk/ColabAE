@@ -22,10 +22,10 @@ for OP_NAME in "${!OP_NAMES[@]}"; do
         # Cuda compilation
         $CUDA_DIR/bin/nvcc $OP_DIR/${OP_NAME}_g.cu -o $OP_DIR/${OP_NAME}_g.cu.o -c -O2 -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
         # shellcheck disable=SC2068
-        g++ ${COMPILE_FLAGS[@]} $OP_DIR/$OP_NAME.cpp $OP_DIR/${OP_NAME}_g.cu.o -o $OP_DIR/${OP_NAME}.so -shared -fPIC -I$TF_INCLUDE -I$TF_INCLUDE/external/nsync/public -L$TF_LIB ${LINK_FLAGS[@]} -I$CUDA_DIR/include -lcudart -L$CUDA_DIR/lib64/ -O2
+        g++ ${COMPILE_FLAGS[@]} $OP_DIR/$OP_NAME.cpp $OP_DIR/${OP_NAME}_g.cu.o -o $OP_DIR/${OP_NAME}_so.so -shared -fPIC -I$TF_INCLUDE -I$TF_INCLUDE/external/nsync/public -L$TF_LIB ${LINK_FLAGS[@]} -I$CUDA_DIR/include -lcudart -L$CUDA_DIR/lib64/ -O2
     else
         # Lib building without $OP_DIR/${OP_NAME}_g.cu.o
         # shellcheck disable=SC2068
-        g++ ${COMPILE_FLAGS[@]} $OP_DIR/$OP_NAME.cpp -o $OP_DIR/${OP_NAME}.so -shared -fPIC -I$TF_INCLUDE -I$TF_INCLUDE/external/nsync/public -L$TF_LIB ${LINK_FLAGS[@]} -I$CUDA_DIR/include -lcudart -L$CUDA_DIR/lib64/ -O2
+        g++ ${COMPILE_FLAGS[@]} $OP_DIR/$OP_NAME.cpp -o $OP_DIR/${OP_NAME}_so.so -shared -fPIC -I$TF_INCLUDE -I$TF_INCLUDE/external/nsync/public -L$TF_LIB ${LINK_FLAGS[@]} -I$CUDA_DIR/include -lcudart -L$CUDA_DIR/lib64/ -O2
     fi
 done
