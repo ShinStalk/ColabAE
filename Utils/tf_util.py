@@ -609,7 +609,7 @@ def dropout(inputs,
   """
   with tf.compat.v1.variable_scope(scope) as sc:
     outputs = tf.cond(pred=is_training,
-                      true_fn=lambda: tf.nn.dropout(inputs, noise_shape, rate=1 - (keep_prob)),
+                      true_fn=lambda: tf.nn.dropout(inputs, noise_shape=noise_shape, rate=1 - (keep_prob)),
                       false_fn=lambda: inputs)
     return outputs
 
