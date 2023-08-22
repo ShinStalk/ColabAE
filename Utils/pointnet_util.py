@@ -7,14 +7,12 @@ Date: November 2017
 import os
 import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'Utils'))
-sys.path.append(os.path.join(ROOT_DIR, 'Ops/sampling'))
-sys.path.append(os.path.join(ROOT_DIR, 'Ops/grouping'))
-sys.path.append(os.path.join(ROOT_DIR, 'Ops/interpolate'))
-from tf_sampling import farthest_point_sample, gather_point
-from tf_grouping import query_ball_point, group_point, knn_point
-from tf_interpolate import three_nn, three_interpolate
+sys.path.append(os.path.join(BASE_DIR, '../Ops/sampling'))
+sys.path.append(os.path.join(BASE_DIR, '../Ops/grouping'))
+sys.path.append(os.path.join(BASE_DIR, '../Ops/interpolate'))
+from sampling import farthest_point_sample, gather_point
+from grouping import query_ball_point, group_point, knn_point
+from interpolate import three_nn, three_interpolate
 import tensorflow as tf
 import numpy as np
 import tf_util
