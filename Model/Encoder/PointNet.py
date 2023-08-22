@@ -6,7 +6,7 @@ from keras import Model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
 
-from Layers import tf2_conv2d
+from tf_util import tf2_conv2d
 
 
 class PointNet:
