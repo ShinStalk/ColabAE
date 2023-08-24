@@ -20,8 +20,8 @@ def _variable_on_cpu(name, shape, initializer, use_fp16=False):
   """
   with tf.device("/cpu:0"):
     dtype = tf.float16 if use_fp16 else tf.float32
-    var = tf.compat.v1.get_variable(name, shape, initializer=initializer, dtype=dtype, use_resource=False)
-  return var
+    #var = tf.compat.v1.get_variable(name, shape, initializer=initializer, dtype=dtype, use_resource=False)
+  return initializer(shape, dtype=dtype)
 
 def _variable_with_weight_decay(name, shape, stddev, wd, use_xavier=True):
   """Helper to create an initialized Variable with weight decay.
@@ -163,18 +163,13 @@ def conv2d(inputs,
         num_in_channels = inputs.shape[-1]
       kernel_shape = [kernel_h, kernel_w,
                       num_in_channels, num_output_channels]
-      kernel = _variable_with_weight_decay('weights',
-                                           shape=kernel_shape,
-                                           use_xavier=use_xavier,
-                                           stddev=stddev,
-                                           wd=weight_decay)
+      kernel = _variable_with_weight_decay('weights', kernel_shape, stddev, weight_decay, use_xavier)
       stride_h, stride_w = stride
       outputs = tf.nn.conv2d(input=inputs, filters=kernel,
                              strides=[1, stride_h, stride_w, 1],
                              padding=padding,
                              data_format=data_format)
-      biases = _variable_on_cpu('biases', [num_output_channels],
-                                tf.compat.v1.constant_initializer(0.0))
+      biases = tf.Variable(tf.zeros([num_output_channels]), name='biases')  # Changed this line
       outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
 
       if bn:
@@ -347,24 +342,17 @@ def fully_connected(inputs,
     Variable tensor of size B x num_outputs.
   """
   with tf.compat.v1.variable_scope(scope) as sc:
-    num_input_units = inputs.shape[-1]
-    weights = _variable_with_weight_decay('weights',
-                                          shape=[num_input_units, num_outputs],
-                                          use_xavier=use_xavier,
-                                          stddev=stddev,
-                                          wd=weight_decay)
-    outputs = tf.matmul(inputs, weights)
-    biases = _variable_on_cpu('biases', [num_outputs],
-                             tf.compat.v1.constant_initializer(0.0))
-    outputs = tf.nn.bias_add(outputs, biases)
-     
-    if bn:
-      outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')
+      weights = _variable_with_weight_decay('weights', [inputs.shape[-1], num_outputs], stddev, weight_decay, use_xavier)
+      biases = tf.Variable(tf.zeros([num_outputs]), name='biases')
+      outputs = tf.matmul(inputs, weights) + biases
 
-    if activation_fn is not None:
-      outputs = activation_fn(outputs)
-    return outputs
+      if activation_fn is not None:
+          outputs = activation_fn(outputs)
 
+      if bn:
+          outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')
+
+  return outputs
 
 def max_pool2d(inputs,
                kernel_size,
