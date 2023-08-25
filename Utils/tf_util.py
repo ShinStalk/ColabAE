@@ -107,9 +107,7 @@ def conv1d(inputs,
     outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
 
     if bn:
-      outputs = batch_norm_for_conv1d(outputs, is_training,
-                                      bn_decay=bn_decay, scope='bn',
-                                      data_format=data_format)
+      outputs = batch_norm_for_conv1d(outputs, bn_decay=bn_decay)
 
     if activation_fn is not None:
       outputs = activation_fn(outputs)
@@ -180,9 +178,7 @@ def conv2d(inputs,
       outputs = outputs + biases
 
       if bn:
-        outputs = batch_norm_for_conv2d(outputs, is_training,
-                                        bn_decay=bn_decay, scope='bn',
-                                        data_format=data_format)
+        outputs = batch_norm_for_conv2d(outputs, bn_decay=bn_decay)
 
       if activation_fn is not None:
         outputs = activation_fn(outputs)
@@ -242,7 +238,7 @@ class conv2d_v2(Layer):
         outputs = outputs + self.biases
 
         if self.bn:
-            outputs = batch_norm_for_conv2d(outputs, is_training=self.is_training, bn_decay=self.bn_decay, scope='bn', data_format=self.data_format)
+            outputs = batch_norm_for_conv2d(outputs, bn_decay=self.bn_decay)
 
         if self.activation_fn is not None:
             outputs = self.activation_fn(outputs)
@@ -321,8 +317,7 @@ def conv2d_transpose(inputs,
       outputs = tf.nn.bias_add(outputs, biases)
 
       if bn:
-        outputs = batch_norm_for_conv2d(outputs, is_training,
-                                        bn_decay=bn_decay, scope='bn', data_format=data_format)
+        outputs = batch_norm_for_conv2d(outputs, bn_decay=bn_decay)
 
       if activation_fn is not None:
         outputs = activation_fn(outputs)
@@ -382,8 +377,7 @@ def conv3d(inputs,
     outputs = tf.nn.bias_add(outputs, biases)
     
     if bn:
-      outputs = batch_norm_for_conv3d(outputs, is_training,
-                                      bn_decay=bn_decay, scope='bn')
+      outputs = batch_norm_for_conv3d(outputs, bn_decay=bn_decay)
 
     if activation_fn is not None:
       outputs = activation_fn(outputs)
@@ -421,7 +415,7 @@ def fully_connected(inputs,
     outputs = tf.nn.bias_add(outputs, biases)
      
     if bn:
-      outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')
+      outputs = batch_norm_for_fc(outputs, bn_decay)
 
     if activation_fn is not None:
       outputs = activation_fn(outputs)
@@ -461,7 +455,7 @@ class fully_connected_v2(Layer):
 
         # Applying the specific batch normalization function if required
         if self.bn:
-            outputs = batch_norm_for_fc(outputs, self.is_training, self.bn_decay, 'bn')
+            outputs = batch_norm_for_fc(outputs, self.bn_decay)
 
         if self.activation_fn is not None:
             outputs = self.activation_fn(outputs)
@@ -615,7 +609,7 @@ def batch_norm_template_unused(inputs, is_training, scope, moments_dims, bn_deca
   return normed
 
 
-def batch_norm_template(inputs, is_training, scope, moments_dims_unused, bn_decay, data_format='NHWC'):
+def batch_norm_template(inputs, bn_decay):
   """ Batch normalization on convolutional maps and beyond...
   Ref.: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
   
@@ -633,7 +627,7 @@ def batch_norm_template(inputs, is_training, scope, moments_dims_unused, bn_deca
   return BatchNormalization(momentum=0.99, scale=True, center=True)(inputs)
 
 
-def batch_norm_for_fc(inputs, is_training, bn_decay, scope):
+def batch_norm_for_fc(inputs, bn_decay):
   """ Batch normalization on FC data.
   
   Args:
@@ -644,10 +638,10 @@ def batch_norm_for_fc(inputs, is_training, bn_decay, scope):
   Return:
       normed:      batch-normalized maps
   """
-  return batch_norm_template(inputs, is_training, scope, [0,], bn_decay)
+  return batch_norm_template(inputs, bn_decay)
 
 
-def batch_norm_for_conv1d(inputs, is_training, bn_decay, scope, data_format):
+def batch_norm_for_conv1d(inputs, bn_decay):
   """ Batch normalization on 1D convolutional maps.
   
   Args:
@@ -659,12 +653,12 @@ def batch_norm_for_conv1d(inputs, is_training, bn_decay, scope, data_format):
   Return:
       normed:      batch-normalized maps
   """
-  return batch_norm_template(inputs, is_training, scope, [0,1], bn_decay, data_format)
+  return batch_norm_template(inputs, bn_decay)
 
 
 
   
-def batch_norm_for_conv2d(inputs, is_training, bn_decay, scope, data_format):
+def batch_norm_for_conv2d(inputs, bn_decay):
   """ Batch normalization on 2D convolutional maps.
   
   Args:
@@ -676,10 +670,10 @@ def batch_norm_for_conv2d(inputs, is_training, bn_decay, scope, data_format):
   Return:
       normed:      batch-normalized maps
   """
-  return batch_norm_template(inputs, is_training, scope, [0,1,2], bn_decay, data_format)
+  return batch_norm_template(inputs, bn_decay)
 
 
-def batch_norm_for_conv3d(inputs, is_training, bn_decay, scope):
+def batch_norm_for_conv3d(inputs, bn_decay):
   """ Batch normalization on 3D convolutional maps.
   
   Args:
@@ -690,7 +684,7 @@ def batch_norm_for_conv3d(inputs, is_training, bn_decay, scope):
   Return:
       normed:      batch-normalized maps
   """
-  return batch_norm_template(inputs, is_training, scope, [0,1,2,3], bn_decay)
+  return batch_norm_template(inputs, bn_decay)
 
 
 def dropout(inputs,
