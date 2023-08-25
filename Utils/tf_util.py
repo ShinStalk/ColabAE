@@ -6,8 +6,7 @@ Date: November 2017
 
 import numpy as np
 import tensorflow as tf
-from keras.layers import Conv2D, Conv2DTranspose, Dense, BatchNormalization, Activation
-
+from keras.layers import Conv2D, Conv2DTranspose, Dense, BatchNormalization, Activation, Layer
 
 def _variable_on_cpu(name, shape, initializer, use_fp16=False):
   """Helper to create a Variable stored on CPU memory.
@@ -20,8 +19,8 @@ def _variable_on_cpu(name, shape, initializer, use_fp16=False):
   """
   with tf.device("/cpu:0"):
     dtype = tf.float16 if use_fp16 else tf.float32
-    #var = tf.compat.v1.get_variable(name, shape, initializer=initializer, dtype=dtype, use_resource=False)
-  return initializer(shape, dtype=dtype)
+    var = tf.compat.v1.get_variable(name, shape, initializer=initializer, dtype=dtype, use_resource=False)
+  return var
 
 def _variable_with_weight_decay(name, shape, stddev, wd, use_xavier=True):
   """Helper to create an initialized Variable with weight decay.
@@ -117,8 +116,6 @@ def conv1d(inputs,
     return outputs
 
 
-
-
 def conv2d(inputs,
            num_output_channels,
            kernel_size,
@@ -163,14 +160,24 @@ def conv2d(inputs,
         num_in_channels = inputs.shape[-1]
       kernel_shape = [kernel_h, kernel_w,
                       num_in_channels, num_output_channels]
-      kernel = _variable_with_weight_decay('weights', kernel_shape, stddev, weight_decay, use_xavier)
+
+      # Selecting the initializer based on use_xavier
+      if use_xavier:
+          initializer = tf.compat.v1.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform")
+      else:
+          initializer = tf.compat.v1.truncated_normal_initializer(stddev=stddev)
+
+      # Creating kernel variable directly
+      kernel = tf.Variable(initializer(shape=kernel_shape), name='weights')
+
       stride_h, stride_w = stride
       outputs = tf.nn.conv2d(input=inputs, filters=kernel,
                              strides=[1, stride_h, stride_w, 1],
                              padding=padding,
                              data_format=data_format)
-      biases = tf.Variable(tf.zeros([num_output_channels]), name='biases')  # Changed this line
-      outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
+      biases = _variable_on_cpu('biases', [num_output_channels],
+                                tf.compat.v1.constant_initializer(0.0))
+      outputs = outputs + biases
 
       if bn:
         outputs = batch_norm_for_conv2d(outputs, is_training,
@@ -180,6 +187,66 @@ def conv2d(inputs,
       if activation_fn is not None:
         outputs = activation_fn(outputs)
       return outputs
+
+class conv2d_v2(Layer):
+    def __init__(self,
+                 num_output_channels,
+                 kernel_size,
+                 scope,
+                 padding='SAME',
+                 stride=[1, 1],
+                 data_format='NHWC',
+                 use_xavier=True,
+                 stddev=1e-3,
+                 activation_fn=tf.nn.relu,
+                 bn=False,
+                 bn_decay=None,
+                 is_training=None, **kwargs):
+        super(conv2d_v2, self).__init__(name=scope, **kwargs)
+        self.num_output_channels = num_output_channels
+        self.kernel_size = kernel_size
+        self.scope = scope
+        self.stride = stride
+        self.padding = padding
+        self.data_format = data_format
+        self.use_xavier = use_xavier
+        self.stddev = stddev
+        self.activation_fn = activation_fn
+        self.bn = bn
+        self.bn_decay = bn_decay
+        self.is_training = is_training
+        self.kernel = None
+        self.biases = None
+
+    def build(self, input_shape):
+        if self.data_format == 'NHWC':
+            num_in_channels = input_shape[-1]
+        elif self.data_format == 'NCHW':
+            num_in_channels = input_shape[1]
+
+        kernel_shape = [self.kernel_size[0], self.kernel_size[1], num_in_channels, self.num_output_channels]
+
+        # Selecting the initializer based on use_xavier
+        initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform") if self.use_xavier else tf.keras.initializers.TruncatedNormal(stddev=self.stddev)
+
+        # Creating kernel and biases
+        print('weights_'+self.scope)
+        self.kernel = self.add_weight(name='weights_'+self.scope, shape=kernel_shape, initializer=initializer, trainable=True)
+        self.biases = self.add_weight(name='biases_'+self.scope, shape=[self.num_output_channels], initializer=tf.keras.initializers.Zeros(), trainable=True)
+
+        super(conv2d_v2, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        stride_h, stride_w = self.stride
+        outputs = tf.nn.conv2d(input=inputs, filters=self.kernel, strides=[1, stride_h, stride_w, 1], padding=self.padding, data_format=self.data_format)
+        outputs = outputs + self.biases
+
+        if self.bn:
+            outputs = batch_norm_for_conv2d(outputs, is_training=self.is_training, bn_decay=self.bn_decay, scope='bn', data_format=self.data_format)
+
+        if self.activation_fn is not None:
+            outputs = self.activation_fn(outputs)
+        return outputs
 
 
 def conv2d_transpose(inputs,
@@ -342,17 +409,65 @@ def fully_connected(inputs,
     Variable tensor of size B x num_outputs.
   """
   with tf.compat.v1.variable_scope(scope) as sc:
-      weights = _variable_with_weight_decay('weights', [inputs.shape[-1], num_outputs], stddev, weight_decay, use_xavier)
-      biases = tf.Variable(tf.zeros([num_outputs]), name='biases')
-      outputs = tf.matmul(inputs, weights) + biases
+    num_input_units = inputs.shape[-1]
+    weights = _variable_with_weight_decay('weights',
+                                          shape=[num_input_units, num_outputs],
+                                          use_xavier=use_xavier,
+                                          stddev=stddev,
+                                          wd=weight_decay)
+    outputs = tf.matmul(inputs, weights)
+    biases = _variable_on_cpu('biases', [num_outputs],
+                             tf.compat.v1.constant_initializer(0.0))
+    outputs = tf.nn.bias_add(outputs, biases)
+     
+    if bn:
+      outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')
 
-      if activation_fn is not None:
-          outputs = activation_fn(outputs)
+    if activation_fn is not None:
+      outputs = activation_fn(outputs)
+    return outputs
 
-      if bn:
-          outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')
 
-  return outputs
+class fully_connected_v2(Layer):
+    def __init__(self, num_outputs, use_xavier=True, stddev=1e-3, activation_fn=tf.nn.relu, bn=False, bn_decay=None, is_training=None, **kwargs):
+        super(fully_connected_v2, self).__init__(**kwargs)
+        self.num_outputs = num_outputs
+        self.use_xavier = use_xavier
+        self.stddev = stddev
+        self.activation_fn = activation_fn
+        self.bn = bn
+        self.bn_decay = bn_decay
+        self.is_training = is_training
+        self._weights = None
+        self._biases = None
+
+    def build(self, input_shape):
+        num_input_units = input_shape[-1]
+
+        # Initializing the weights
+        if self.use_xavier:
+            initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform")
+        else:
+            initializer = tf.keras.initializers.TruncatedNormal(stddev=self.stddev)
+
+        self._weights = self.add_weight(name='weights', shape=[num_input_units, self.num_outputs], initializer=initializer)
+        self._biases = self.add_weight(name='biases', shape=[self.num_outputs], initializer='zeros')
+
+        super(fully_connected_v2, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        outputs = tf.matmul(inputs, self._weights)
+        outputs = tf.nn.bias_add(outputs, self._biases)
+
+        # Applying the specific batch normalization function if required
+        if self.bn:
+            outputs = batch_norm_for_fc(outputs, self.is_training, self.bn_decay, 'bn')
+
+        if self.activation_fn is not None:
+            outputs = self.activation_fn(outputs)
+
+        return outputs
+
 
 def max_pool2d(inputs,
                kernel_size,
