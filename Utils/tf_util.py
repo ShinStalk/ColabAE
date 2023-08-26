@@ -62,8 +62,7 @@ def conv1d(inputs,
            weight_decay=None,
            activation_fn=tf.nn.relu,
            bn=False,
-           bn_decay=None,
-           is_training=None):
+           bn_decay=None):
   """ 1D convolution with non-linear operation.
 
   Args:
@@ -80,7 +79,6 @@ def conv1d(inputs,
     activation_fn: function
     bn: bool, whether to use batch norm
     bn_decay: float or float tensor variable in [0,1]
-    is_training: bool Tensor variable
 
   Returns:
     Variable tensor
@@ -126,8 +124,7 @@ def conv2d(inputs,
            weight_decay=None,
            activation_fn=tf.nn.relu,
            bn=False,
-           bn_decay=None,
-           is_training=None):
+           bn_decay=None):
   """ 2D convolution with non-linear operation.
 
   Args:
@@ -144,7 +141,6 @@ def conv2d(inputs,
     activation_fn: function
     bn: bool, whether to use batch norm
     bn_decay: float or float tensor variable in [0,1]
-    is_training: bool Tensor variable
 
   Returns:
     Variable tensor
@@ -196,8 +192,7 @@ class conv2d_v2(Layer):
                  stddev=1e-3,
                  activation_fn=tf.nn.relu,
                  bn=False,
-                 bn_decay=None,
-                 is_training=None, **kwargs):
+                 bn_decay=None, **kwargs):
         super(conv2d_v2, self).__init__(name=scope, **kwargs)
         self.num_output_channels = num_output_channels
         self.kernel_size = kernel_size
@@ -210,7 +205,6 @@ class conv2d_v2(Layer):
         self.activation_fn = activation_fn
         self.bn = bn
         self.bn_decay = bn_decay
-        self.is_training = is_training
         self.kernel = None
         self.biases = None
 
@@ -257,7 +251,6 @@ def conv2d_transpose(inputs,
                      activation_fn=tf.nn.relu,
                      bn=False,
                      bn_decay=None,
-                     is_training=None,
                      data_format='NHCW'):
   """ 2D convolution transpose with non-linear operation.
 
@@ -274,7 +267,6 @@ def conv2d_transpose(inputs,
     activation_fn: function
     bn: bool, whether to use batch norm
     bn_decay: float or float tensor variable in [0,1]
-    is_training: bool Tensor variable
 
   Returns:
     Variable tensor
@@ -336,8 +328,7 @@ def conv3d(inputs,
            weight_decay=None,
            activation_fn=tf.nn.relu,
            bn=False,
-           bn_decay=None,
-           is_training=None):
+           bn_decay=None):
   """ 3D convolution with non-linear operation.
 
   Args:
@@ -353,7 +344,6 @@ def conv3d(inputs,
     activation_fn: function
     bn: bool, whether to use batch norm
     bn_decay: float or float tensor variable in [0,1]
-    is_training: bool Tensor variable
 
   Returns:
     Variable tensor
@@ -391,8 +381,7 @@ def fully_connected(inputs,
                     weight_decay=None,
                     activation_fn=tf.nn.relu,
                     bn=False,
-                    bn_decay=None,
-                    is_training=None):
+                    bn_decay=None):
   """ Fully connected layer with non-linear operation.
   
   Args:
@@ -423,7 +412,7 @@ def fully_connected(inputs,
 
 
 class fully_connected_v2(Layer):
-    def __init__(self, num_outputs, use_xavier=True, stddev=1e-3, activation_fn=tf.nn.relu, bn=False, bn_decay=None, is_training=None, **kwargs):
+    def __init__(self, num_outputs, use_xavier=True, stddev=1e-3, activation_fn=tf.nn.relu, bn=False, bn_decay=None, **kwargs):
         super(fully_connected_v2, self).__init__(**kwargs)
         self.num_outputs = num_outputs
         self.use_xavier = use_xavier
@@ -431,7 +420,6 @@ class fully_connected_v2(Layer):
         self.activation_fn = activation_fn
         self.bn = bn
         self.bn_decay = bn_decay
-        self.is_training = is_training
         self._weights = None
         self._biases = None
 
@@ -615,7 +603,6 @@ def batch_norm_template(inputs, bn_decay):
   
   Args:
       inputs:        Tensor, k-D input ... x C could be BC or BHWC or BDHWC
-      is_training:   boolean tf.Varialbe, true indicates training phase
       scope:         string, variable scope
       moments_dims:  a list of ints, indicating dimensions for moments calculation
       bn_decay:      float or float tensor variable, controling moving average weight
@@ -632,7 +619,6 @@ def batch_norm_for_fc(inputs, bn_decay):
   
   Args:
       inputs:      Tensor, 2D BxC input
-      is_training: boolean tf.Varialbe, true indicates training phase
       bn_decay:    float or float tensor variable, controling moving average weight
       scope:       string, variable scope
   Return:
@@ -646,7 +632,6 @@ def batch_norm_for_conv1d(inputs, bn_decay):
   
   Args:
       inputs:      Tensor, 3D BLC input maps
-      is_training: boolean tf.Varialbe, true indicates training phase
       bn_decay:    float or float tensor variable, controling moving average weight
       scope:       string, variable scope
       data_format: 'NHWC' or 'NCHW'
@@ -663,7 +648,6 @@ def batch_norm_for_conv2d(inputs, bn_decay):
   
   Args:
       inputs:      Tensor, 4D BHWC input maps
-      is_training: boolean tf.Varialbe, true indicates training phase
       bn_decay:    float or float tensor variable, controling moving average weight
       scope:       string, variable scope
       data_format: 'NHWC' or 'NCHW'
@@ -678,7 +662,6 @@ def batch_norm_for_conv3d(inputs, bn_decay):
   
   Args:
       inputs:      Tensor, 5D BDHWC input maps
-      is_training: boolean tf.Varialbe, true indicates training phase
       bn_decay:    float or float tensor variable, controling moving average weight
       scope:       string, variable scope
   Return:

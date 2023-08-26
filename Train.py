@@ -22,7 +22,7 @@ BASE_DIR = os.path.abspath('')
 sys.path.append(os.path.join(BASE_DIR, 'Utils'))
 sys.path.append(os.path.join(BASE_DIR, 'Loss'))
 
-from pointnet_util import pointnet_sa_module, pointnet_fp_module
+from pointnet_util import pointnet_sa_module, pointnet_fp_module, PointNetSAModule
 from tf_util import fully_connected_v2
 
 class PointNet2Encoder(Model):
@@ -34,19 +34,29 @@ class PointNet2Encoder(Model):
     self.bn_decay = bn_decay
     self.xyz = [None, None, None, None, None]
     self.points = [None, None, None, None, None]
+    self.pointnet_sa_layer1 = PointNetSAModule(self.points[0], npoint=1024, radius=0.1, nsample=32, mlp=[32,32,64], scope='sa1', bn_decay=self.bn_decay)
+    self.pointnet_sa_layer2 = PointNetSAModule(self.points[1], npoint=512, radius=0.2, nsample=32, mlp=[64,64,128], scope='sa2', bn_decay=self.bn_decay)
+    self.pointnet_sa_layer3 = PointNetSAModule(self.points[2], npoint=256, radius=0.4, nsample=32, mlp=[128,128,256], scope='sa3', bn_decay=self.bn_decay)
+    self.pointnet_sa_layer4 = PointNetSAModule(self.points[3], npoint=128, radius=0.8, nsample=32, mlp=[256,256,512], scope='sa4', bn_decay=self.bn_decay)
+
+
+  def build(self, input_shape):
+    self.pointnet_sa_layer1.build(input_shape)
+    self.pointnet_sa_layer2.build(input_shape)
+    self.pointnet_sa_layer3.build(input_shape)
+    self.pointnet_sa_layer4.build(input_shape)
 
   def call(self, inputs, **kwargs):
     self.xyz[0] = tf.reshape(inputs, [-1, self.num_point, self.point_dim])
-    self.points[0] = None
 
-    # Encoder
-    self.xyz[1], self.points[1], _ = pointnet_sa_module(self.xyz[0], self.points[0], npoint=1024, radius=0.1, nsample=32, mlp=[32,32,64], mlp2=None, group_all=False, is_training=True, bn_decay=self.bn_decay, scope='layer1')
+
+    self.xyz[1], self.points[1], _ = self.pointnet_sa_layer1(self.xyz[0])
     # print(f'l1_xyz: {self.xyz[1].shape}, l1_points: {self.points[1].shape}') # l1_xyz: (32, 1024, 3), l1_points: (32, 1024, 64)
-    self.xyz[2], self.points[2], _ = pointnet_sa_module(self.xyz[1], self.points[1], npoint=512, radius=0.2, nsample=32, mlp=[64,64,128], mlp2=None, group_all=False, is_training=True, bn_decay=self.bn_decay, scope='layer2')
+    self.xyz[2], self.points[2], _ = self.pointnet_sa_layer2(self.xyz[1])
     # print(f'l2_xyz: {self.xyz[2].shape}, l2_points: {self.points[2].shape}') # l2_xyz: (32, 512, 3), l2_points: (32, 512, 128)
-    self.xyz[3], self.points[3], _ = pointnet_sa_module(self.xyz[2], self.points[2], npoint=256, radius=0.4, nsample=32, mlp=[128,128,256], mlp2=None, group_all=False, is_training=True, bn_decay=self.bn_decay, scope='layer3')
+    self.xyz[3], self.points[3], _ = self.pointnet_sa_layer3(self.xyz[2])
     # print(f'l3_xyz: {self.xyz[3].shape}, l3_points: {self.points[3].shape}') # l3_xyz: (32, 256, 3), l3_points: (32, 256, 256)
-    self.xyz[4], self.points[4], _ = pointnet_sa_module(self.xyz[3], self.points[3], npoint=128, radius=0.8, nsample=32, mlp=[256,256,512], mlp2=None, group_all=False, is_training=True, bn_decay=self.bn_decay, scope='layer4')
+    self.xyz[4], self.points[4], _ = self.pointnet_sa_layer4(self.xyz[3])
     # print(f'l4_xyz: {self.xyz[4].shape}, l4_points: {self.points[4].shape}') # l4_xyz: (32, 128, 3), l4_points: (32, 128, 512)
 
     # Global pooling
@@ -54,10 +64,10 @@ class PointNet2Encoder(Model):
     # print(f'net after pooling: {net.shape}') # net after pooling: (32, 512)
 
     # Dense layers to reach the latent space
-    fc_layer1 = fully_connected_v2(256, bn=True, is_training=True, bn_decay=self.bn_decay)
+    fc_layer1 = fully_connected_v2(256, bn=True, bn_decay=self.bn_decay)
     net = fc_layer1(net)
     # TODO : Add tf_util.dropout(inputs, is_training=True, scope='drop1', keep_prob=0.5, noise_shape=None)
-    fc_layer2 = fully_connected_v2(256, bn=True, is_training=True, bn_decay=self.bn_decay)
+    fc_layer2 = fully_connected_v2(256, bn=True, bn_decay=self.bn_decay)
     net = fc_layer2(net)
     # TODO : Add tf_util.dropout(inputs, is_training=True, scope='dp2' keep_prob=0.5, noise_shape=None)
     fc_layer3 = fully_connected_v2(self.latent_dim, activation_fn=None) # Final layer for encoding to latent_dim
