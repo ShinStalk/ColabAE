@@ -207,6 +207,8 @@ class conv2d_v2(Layer):
         self.bn_decay = bn_decay
         self.kernel = None
         self.biases = None
+        if self.bn:
+            self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
 
     def build(self, input_shape):
         if self.data_format == 'NHWC':
@@ -220,7 +222,7 @@ class conv2d_v2(Layer):
         initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform") if self.use_xavier else tf.keras.initializers.TruncatedNormal(stddev=self.stddev)
 
         # Creating kernel and biases
-        print('weights_'+self.scope)
+        # print('weights_'+self.scope)
         self.kernel = self.add_weight(name='weights_'+self.scope, shape=kernel_shape, initializer=initializer, trainable=True)
         self.biases = self.add_weight(name='biases_'+self.scope, shape=[self.num_output_channels], initializer=tf.keras.initializers.Zeros(), trainable=True)
 
@@ -232,7 +234,7 @@ class conv2d_v2(Layer):
         outputs = outputs + self.biases
 
         if self.bn:
-            outputs = batch_norm_for_conv2d(outputs, bn_decay=self.bn_decay)
+           outputs = self.bn_layer(outputs)
 
         if self.activation_fn is not None:
             outputs = self.activation_fn(outputs)
@@ -422,6 +424,8 @@ class fully_connected_v2(Layer):
         self.bn_decay = bn_decay
         self._weights = None
         self._biases = None
+        if self.bn:
+            self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
 
     def build(self, input_shape):
         num_input_units = input_shape[-1]
@@ -439,11 +443,11 @@ class fully_connected_v2(Layer):
 
     def call(self, inputs, **kwargs):
         outputs = tf.matmul(inputs, self._weights)
-        outputs = tf.nn.bias_add(outputs, self._biases)
+        outputs = outputs + self._biases
 
         # Applying the specific batch normalization function if required
         if self.bn:
-            outputs = batch_norm_for_fc(outputs, self.bn_decay)
+            outputs = self.bn_layer(outputs)
 
         if self.activation_fn is not None:
             outputs = self.activation_fn(outputs)

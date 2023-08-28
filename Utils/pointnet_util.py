@@ -163,7 +163,21 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
         return new_xyz, new_points, idx
 
 
+''' PointNet Set Abstraction (SA) Module '''
 class PointNetSAModule(Layer):
+    '''
+        Input:
+            points: (batch_size, ndataset, channel) TF tensor
+            npoint: int32 -- #points sampled in farthest point sampling
+            radius: float32 -- search radius in local region
+            nsample: int32 -- how many points in each local region
+            mlp: list of int32 -- output size for MLP on each point
+            mlp2: list of int32 -- output size for MLP on each region
+            group_all: bool -- group all points into one PC if set true, OVERRIDE
+                npoint, radius and nsample settings
+            use_xyz: bool, if True concat XYZ with local point features, otherwise just use point features
+            use_nchw: bool, if True, use NCHW data format for conv2d, which is usually faster than NHWC format
+    '''
     def __init__(self, points, npoint, radius, nsample, mlp, scope, bn_decay=None, mlp2=None, group_all=False,  bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False, **kwargs):
         super(PointNetSAModule, self).__init__(**kwargs)
         self.points = points
@@ -183,13 +197,12 @@ class PointNetSAModule(Layer):
         self.conv2d_layers = []
         self.conv2d_layers2 = []
 
-    def build(self, input_shape):
         data_format = 'NCHW' if self.use_nchw else 'NHWC'
         for i, num_out_channel in enumerate(self.mlp):
             self.conv2d_layers.append(
                 tf_util.conv2d_v2(num_out_channel, [1, 1],
                                   padding='VALID', stride=[1, 1], bn=self.bn,
-                                  scope=self.scope+'_conv%d' % (i), bn_decay=self.bn_decay,
+                                  scope=self.scope + '_conv%d' % (i), bn_decay=self.bn_decay,
                                   data_format=data_format)
             )
         if self.mlp2:
@@ -197,11 +210,19 @@ class PointNetSAModule(Layer):
                 self.conv2d_layers2.append(
                     tf_util.conv2d_v2(num_out_channel, [1, 1],
                                       padding='VALID', stride=[1, 1], bn=self.bn,
-                                      scope=self.scope+'_conv_post%d' % (i), bn_decay=self.bn_decay,
+                                      scope=self.scope + '_conv_post%d' % (i), bn_decay=self.bn_decay,
                                       data_format=data_format)
                 )
 
     def call(self, xyz, **kwargs):
+        '''
+            Input:
+                xyz: (batch_size, ndataset, 3) TF tensor
+            Return:
+                new_xyz: (batch_size, npoint, 3) TF tensor
+                new_points: (batch_size, npoint, mlp[-1] or mlp2[-1]) TF tensor
+                idx: (batch_size, npoint, nsample) int32 -- indices for local regions
+        '''
         # Sample and Grouping
         if self.group_all:
             self.nsample = xyz.shape[1]
@@ -312,6 +333,7 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, bn_decay, scope, bn=Tr
             new_points1 = tf.concat(axis=2, values=[interpolated_points, points1]) # B,ndataset1,nchannel1+nchannel2
         else:
             new_points1 = interpolated_points
+
         new_points1 = tf.expand_dims(new_points1, 2)
         for i, num_out_channel in enumerate(mlp):
             conv2d_layer = tf_util.conv2d_v2(num_out_channel, [1, 1],
@@ -319,4 +341,57 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, bn_decay, scope, bn=Tr
                                              scope=scope+'_conv_post_%d'%(i), bn_decay=bn_decay)
             new_points1 = conv2d_layer(new_points1)
         new_points1 = tf.squeeze(new_points1, [2]) # B,ndataset1,mlp[-1]
+
         return new_points1
+
+''' PointNet Feature Propogation (FP) Module '''
+class PointNetFPModule(Layer):
+    '''
+        Input:
+            mlp: list of int32 -- output size for MLP on each point
+    '''
+    def __init__(self, mlp, scope, bn_decay, bn=True, **kwargs):
+        super(PointNetFPModule, self).__init__(**kwargs)
+        self.mlp = mlp
+        self.bn_decay = bn_decay
+        self.scope = scope
+        self.bn = bn
+        self.conv2d_layers = []
+
+        for i, num_out_channel in enumerate(self.mlp):
+            self.conv2d_layers.append(
+                tf_util.conv2d_v2(num_out_channel, [1, 1],
+                                 padding='VALID', stride=[1, 1], bn=self.bn,
+                                 scope=self.scope+'_conv%d'%(i), bn_decay=self.bn_decay)
+            )
+
+    def call(self, xyz1, xyz2, points1, points2, **kwargs):
+        '''
+            Input:
+                xyz1: (batch_size, ndataset1, 3) TF tensor
+                xyz2: (batch_size, ndataset2, 3) TF tensor, sparser than xyz1
+                points1: (batch_size, ndataset1, nchannel1) TF tensor
+                points2: (batch_size, ndataset2, nchannel2) TF tensor
+            Return:
+                new_points: (batch_size, ndataset1, mlp[-1]) TF tensor
+            '''
+        dist, idx = three_nn(xyz1, xyz2)
+        dist = tf.maximum(dist, 1e-10)
+        norm = tf.reduce_sum(input_tensor=(1.0 / dist), axis=2, keepdims=True)
+        norm = tf.tile(norm, [1, 1, 3])
+        weight = (1.0 / dist) / norm
+        interpolated_points = three_interpolate(points2, idx, weight)
+
+        # Point Feature Embedding
+        if points1 is not None:
+            new_points1 = tf.concat(axis=2, values=[interpolated_points, points1]) # B,ndataset1,nchannel1+nchannel2
+        else:
+            new_points1 = interpolated_points
+        new_points1 = tf.expand_dims(new_points1, 2)
+
+        intermediate_results = [new_points1]
+        for layer in self.conv2d_layers:
+            intermediate_results.append(layer(intermediate_results[-1]))
+
+        return tf.squeeze(intermediate_results[-1], [2])  # (batch_size, npoints, mlp2[-1])
+
