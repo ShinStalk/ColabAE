@@ -137,7 +137,7 @@ class PointNet2AE(Model):
     super(PointNet2AE, self).__init__()
     self.encoder_model = PointNet2Encoder(input_shape, 128, 0.99)
     #self.decoder_model = PointNet2Decoder(self.encoder_model, 0.99)
-    self.decoder_model = FC(input_shape)
+    self.decoder_model = FC(input_shape[1])
 
   def call(self, inputs):
     encoded_tensor = self.encoder_model(inputs)

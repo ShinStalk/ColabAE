@@ -10,15 +10,12 @@ from tf_util import fully_connected_v2
 
 
 class FC(Model):
-    def __init__(self, input_shape, **kwargs):
+    def __init__(self, point_dim, **kwargs):
         super(FC, self).__init__(**kwargs)
-
-        self.num_point = input_shape[0]
-        self.num_dim = input_shape[1]
         self.flatten_layer = Flatten()
-        self.fc_layer1 = fully_connected_v2(256*self.num_dim, bn=True)
-        self.fc_layer2 = fully_connected_v2(512*self.num_dim, bn=True)
-        self.fc_layer3 = fully_connected_v2(1024*self.num_dim, activation_fn=None)  # Final layer for encoding to latent_dim
+        self.fc_layer1 = fully_connected_v2(256*point_dim, bn=True)
+        self.fc_layer2 = fully_connected_v2(512*point_dim, bn=True)
+        self.fc_layer3 = fully_connected_v2(1024*point_dim, activation_fn=None)
 
 
     def call(self, inputs, **kwargs):
@@ -29,6 +26,6 @@ class FC(Model):
         net = self.fc_layer2(net) # (32, 1536)
         net = self.fc_layer3(net) # (32, 3072)
 
-        net = Reshape((self.num_point, 3))(net) # (32, 1024, 3)
+        net = Reshape((int(net.shape[1]/3), 3))(net) # (32, 1024, 3)
 
         return net
