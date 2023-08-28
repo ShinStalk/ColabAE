@@ -58,7 +58,6 @@ class PointNet2Encoder(Model):
     self.xyz[2], self.points[2], _ = self.pointnet_sa_layer2(self.xyz[1])
     print(f'xyz[2]: {self.xyz[2].shape}, points[2]: {self.points[2].shape}') # xyz[2]: (32, 512, 3), points[2]: (32, 512, 128)
     self.xyz[3], self.points[3], _ = self.pointnet_sa_layer3(self.xyz[2])
-    print(f'test xyz[3]: {self.xyz[3]}')
     print(f'xyz[3]: {self.xyz[3].shape}, points[3]: {self.points[3].shape}') # xyz[3]: (32, 256, 3), points[3]: (32, 256, 256)
     self.xyz[4], self.points[4], _ = self.pointnet_sa_layer4(self.xyz[3])
     print(f'xyz[4]: {self.xyz[4].shape}, points[4]: {self.points[4].shape}') # xyz[4]: (32, 128, 3), points[4]: (32, 128, 512)
@@ -67,15 +66,18 @@ class PointNet2Encoder(Model):
     net = tf.reduce_max(self.points[4], axis=1, keepdims=False)
     # print(f'net after pooling: {net.shape}') # net after pooling: (32, 512)
 
-    # Dense layers to reach the latent space
-    net = self.fc_layer1(net)
-    # TODO : Add tf_util.dropout(inputs, is_training=True, scope='drop1', keep_prob=0.5, noise_shape=None)
-    net = self.fc_layer2(net)
-    # TODO : Add tf_util.dropout(inputs, is_training=True, scope='dp2' keep_prob=0.5, noise_shape=None)
-    net = self.fc_layer3(net)
-    # print(f'final net: {net.shape}') # (32, latent_dim [128])
+    # # Dense layers to reach the latent space
+    # net = self.fc_layer1(net)
+    # print(f'Encoder net1: {net.shape}')
+    # # TODO : Add tf_util.dropout(inputs, is_training=True, scope='drop1', keep_prob=0.5, noise_shape=None)
+    # net = self.fc_layer2(net)
+    # print(f'Encoder net2: {net.shape}')
+    # # TODO : Add tf_util.dropout(inputs, is_training=True, scope='dp2' keep_prob=0.5, noise_shape=None)
+    # net = self.fc_layer3(net)
+    # print(f'Encoder net3: {net.shape}')
+    # # print(f'final net: {net.shape}') # (32, latent_dim [128])
 
-    return net
+    return self.xyz[4]
 
 
 class PointNet2Decoder(Model):
@@ -124,18 +126,22 @@ class PointNet2Decoder(Model):
 
 
 from tensorflow.keras.optimizers import Adam
+#from EMDLoss import EMDLoss
 from CDLoss import ChamferDistanceLoss
 
+sys.path.append(os.path.join(BASE_DIR, 'Model/Decoder'))
+from FC import FC
 
 class PointNet2AE(Model):
   def __init__(self, input_shape, latent_dim):
     super(PointNet2AE, self).__init__()
     self.encoder_model = PointNet2Encoder(input_shape, 128, 0.99)
-    self.decoder_model = PointNet2Decoder(self.encoder_model, 0.99)
+    #self.decoder_model = PointNet2Decoder(self.encoder_model, 0.99)
+    self.decoder_model = FC(input_shape)
 
   def call(self, inputs):
     encoded_tensor = self.encoder_model(inputs)
-    decoded_tensor = self.decoder_model(self.encoder_model)
+    decoded_tensor = self.decoder_model(encoded_tensor)
     return decoded_tensor
 
 

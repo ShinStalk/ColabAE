@@ -1,28 +1,34 @@
 import os
 import sys
-from keras.layers import Reshape, Dense, Input
+from keras.layers import Reshape, Dense, Input, Flatten
 from keras import Model
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
 
-from tf_util import tf2_fully_connected
+from tf_util import fully_connected_v2
 
 
-class FC:
-    def __init__(self):
-        self.num_point = None
+class FC(Model):
+    def __init__(self, input_shape, **kwargs):
+        super(FC, self).__init__(**kwargs)
 
-    def build(self, input_shape):
-        print(f'[build] FC input_shape: {input_shape}')
-        self.num_point = input_shape[1]
+        self.num_point = input_shape[0]
+        self.num_dim = input_shape[1]
+        self.flatten_layer = Flatten()
+        self.fc_layer1 = fully_connected_v2(256*self.num_dim, bn=True)
+        self.fc_layer2 = fully_connected_v2(512*self.num_dim, bn=True)
+        self.fc_layer3 = fully_connected_v2(1024*self.num_dim, activation_fn=None)  # Final layer for encoding to latent_dim
+
 
     def call(self, inputs, **kwargs):
+        # inputs: (32, 128, 3)
         # FC Decoder
-        net = tf2_fully_connected(inputs, 1024)
-        net = tf2_fully_connected(net, 1024)
-        net = Dense(self.num_point * 3)(net)
+        net = self.flatten_layer(inputs) # (32, 384)
+        net = self.fc_layer1(net) # (32, 768)
+        net = self.fc_layer2(net) # (32, 1536)
+        net = self.fc_layer3(net) # (32, 3072)
 
-        net = Reshape((self.num_point, 3))(net)
+        net = Reshape((self.num_point, 3))(net) # (32, 1024, 3)
 
-        return Model(inputs=inputs, outputs=net)
+        return net

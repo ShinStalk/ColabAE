@@ -614,8 +614,8 @@ def batch_norm_template(inputs, bn_decay):
   Return:
       normed:        batch-normalized maps
   """
-  bn_decay = bn_decay if bn_decay is not None else 0.9
-  return BatchNormalization(momentum=0.99, scale=True, center=True)(inputs)
+  bn_decay = bn_decay if bn_decay is not None else 0.99
+  return BatchNormalization(momentum=bn_decay, scale=True, center=True)(inputs)
 
 
 def batch_norm_for_fc(inputs, bn_decay):
