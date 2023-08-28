@@ -10,22 +10,19 @@ from tf_util import tf2_fully_connected
 
 
 class FC:
-    def __init__(self, input):
-        self.input = input
+    def __init__(self):
+        self.num_point = None
 
-    def build(self):
-        num_point = self.input.shape[1]
+    def build(self, input_shape):
+        print(f'[build] FC input_shape: {input_shape}')
+        self.num_point = input_shape[1]
 
+    def call(self, inputs, **kwargs):
         # FC Decoder
-        net = tf2_fully_connected(self.input, 1024)
+        net = tf2_fully_connected(inputs, 1024)
         net = tf2_fully_connected(net, 1024)
-        net = Dense(num_point * 3)(net)
+        net = Dense(self.num_point * 3)(net)
 
-        net = Reshape((num_point, 3))(net)
+        net = Reshape((self.num_point, 3))(net)
 
-        return Model(inputs=self.input, outputs=net)
-
-if __name__ == "__main__":
-    input_tensor = Input(shape=(1024))
-    encoder = FC(input_tensor)
-    encoder.build()
+        return Model(inputs=inputs, outputs=net)
