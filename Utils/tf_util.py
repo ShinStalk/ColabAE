@@ -720,3 +720,25 @@ def tf2_fully_connected(inputs, num_outputs):
     dense_layer = Activation('relu')(dense_layer)
 
     return dense_layer
+
+
+class CustomKerasDense(Layer):
+    def __init__(self, num_outputs, activation=None, bn=True):
+        super().__init__()
+        self.activation = activation
+        self.bn = bn
+
+        self.dense_layer = Dense(num_outputs)
+        if bn:
+            self.batch_norm = BatchNormalization()
+        if activation is not None:
+            self.activation_layer = Activation(activation)
+
+    def call(self, inputs, **kwargs):
+        output = self.dense_layer(inputs)
+        if self.bn:
+            output = self.batch_norm(output)
+        if self.activation is not None:
+            output = self.activation_layer(output)
+
+        return output
