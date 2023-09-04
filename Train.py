@@ -29,14 +29,11 @@ sys.path.append(os.path.join(BASE_DIR, 'Model/Encoder'))
 from pointnet_util import PointNetSAModule, PointNetFPModule
 
 from PointNet2_SA import PointNet2Encoder
-from FP_FC import PointNet2Decoder
+from FP_UPCONV import PointNet2Decoder
 
 from tensorflow.keras.optimizers import Adam
 #from EMDLoss import EMDLoss
 from CDLoss import ChamferDistanceLoss
-
-sys.path.append(os.path.join(BASE_DIR, 'Model/Decoder'))
-from FC import FC
 
 class PointNet2AE(Model):
   def __init__(self, input_shape, latent_dim):

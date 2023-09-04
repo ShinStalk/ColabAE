@@ -15,8 +15,8 @@ from PointNet2_SA import PointNet2Encoder
 
 NB_OF_POINTS = 1024
 BATCH_SIZE = 32
-EPOCHS = 40
-LEARNING_RATE = 0.001
+EPOCHS = 100
+LEARNING_RATE = 0.0001
 
 class PointNet2AE(Model):
   def __init__(self, input_shape, latent_dim):
