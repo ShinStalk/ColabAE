@@ -332,7 +332,7 @@ class conv2d_transpose_v2(Layer):
                  padding='SAME',
                  use_xavier=True,
                  stddev=1e-3,
-                 activation_fn=tf.nn.relu,
+                 activation_fn=tf.keras.activations.relu,
                  bn=False,
                  bn_decay=None, **kwargs):
 
@@ -353,10 +353,9 @@ class conv2d_transpose_v2(Layer):
             self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
 
     def build(self, input_shape):
-        kernel_h, kernel_w = kernel_size
+        kernel_h, kernel_w = self.kernel_size
         num_in_channels = input_shape[-1]
-        kernel_shape = [kernel_h, kernel_w,
-                        num_output_channels, num_in_channels]  # reversed to conv2d
+        kernel_shape = [kernel_h, kernel_w, self.num_output_channels, num_in_channels]  # reversed to conv2d
 
         # Selecting the initializer based on use_xavier
         initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform") if self.use_xavier else tf.keras.initializers.TruncatedNormal(
@@ -368,7 +367,9 @@ class conv2d_transpose_v2(Layer):
 
         super(conv2d_transpose_v2, self).build(input_shape)
 
-        stride_h, stride_w = stride
+    def call(self, inputs, **kwargs):
+        kernel_h, kernel_w = self.kernel_size
+        stride_h, stride_w = self.stride
 
         # from slim.convolution2d_transpose
         def get_deconv_dim(dim_size, stride_size, kernel_size, padding):
@@ -382,22 +383,19 @@ class conv2d_transpose_v2(Layer):
         batch_size = inputs.shape[0]
         height = inputs.shape[1]
         width = inputs.shape[2]
-        out_height = get_deconv_dim(height, stride_h, kernel_h, padding)
-        out_width = get_deconv_dim(width, stride_w, kernel_w, padding)
-        output_shape = [batch_size, out_height, out_width, num_output_channels]
+        out_height = get_deconv_dim(height, stride_h, kernel_h, self.padding)
+        out_width = get_deconv_dim(width, stride_w, kernel_w, self.padding)
+        output_shape = [batch_size, out_height, out_width, self.num_output_channels]
 
-        outputs = tf.nn.conv2d_transpose(inputs, kernel, output_shape,
-                                         [1, stride_h, stride_w, 1],
-                                         padding=padding)
-        biases = _variable_on_cpu('biases', [num_output_channels],
-                                  tf.compat.v1.constant_initializer(0.0))
-        outputs = tf.nn.bias_add(outputs, biases)
+        #TODO replace with Conv2DTranspose Keras layer (see: https://stackoverflow.com/questions/55825822/why-does-tf-keras-layers-conv2dtranspose-need-no-output-shape-compared-to-tf-nn)
+        outputs = tf.nn.conv2d_transpose(input=inputs, filters=self.kernel, output_shape=output_shape, strides=[1, stride_h, stride_w, 1], padding=self.padding)
+        outputs = outputs + self.biases
 
-        if bn:
-            outputs = batch_norm_for_conv2d(outputs, bn_decay=bn_decay)
+        if self.bn:
+           outputs = self.bn_layer(outputs)
 
-        if activation_fn is not None:
-            outputs = activation_fn(outputs)
+        if self.activation_fn is not None:
+            outputs = self.activation_fn(outputs)
         return outputs
 
 
@@ -510,6 +508,7 @@ class fully_connected_v2(Layer):
             self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
 
     def build(self, input_shape):
+        print(f'build fc input_shape: {input_shape}')
         num_input_units = input_shape[-1]
 
         # Initializing the weights
@@ -524,6 +523,7 @@ class fully_connected_v2(Layer):
         super(fully_connected_v2, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
+        print(f'call fc inputs.shape: {inputs.shape}')
         outputs = tf.matmul(inputs, self._weights)
         outputs = outputs + self._biases
 

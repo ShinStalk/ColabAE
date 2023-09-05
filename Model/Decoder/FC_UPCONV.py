@@ -6,8 +6,7 @@ from keras import Model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '../../Utils'))
 
-from pointnet_util import PointNetFPModule
-from tf_util import fully_connected_v2
+from tf_util import fully_connected_v2, conv2d_transpose_v2
 from keras.layers import Dense, Dropout, MaxPooling2D
 
 
@@ -19,35 +18,40 @@ class PointNet2Decoder(Model):
         self.points1 = [None, None, None, None]
 
         self.fc1 = fully_connected_v2(512)
+
         self.fc2 = fully_connected_v2(512)
         self.fc3 = fully_connected_v2(512)
         self.fc4 = fully_connected_v2(512 * 3, activation_fn=None)
 
+        self.upconv1 = conv2d_transpose_v2(512, kernel_size=(2, 2), stride=(1, 1), padding='VALID', scope='upconv1', bn=True, bn_decay=bn_decay)
+        self.upconv2 = conv2d_transpose_v2(256, kernel_size=(3, 3), stride=(1, 1), padding='VALID', scope='upconv2', bn=True, bn_decay=bn_decay)
+        self.upconv3 = conv2d_transpose_v2(128, kernel_size=(3, 3), stride=(1, 1), padding='VALID', scope='upconv3', bn=True, bn_decay=bn_decay)
+        self.upconv4 = conv2d_transpose_v2(64, kernel_size=(6, 6), stride=(2, 2), padding='VALID', scope='upconv4', bn=True, bn_decay=bn_decay)
+        self.upconv5 = conv2d_transpose_v2(6, kernel_size=(1, 1), stride=(1, 1), padding='VALID', scope='upconv5', activation_fn=None)
+
 
     def call(self, xyz_input, points_input, **kwargs):
 
-        embedding = self.fc1(512) # (None, 512)
+        embedding = self.fc1(points_input) # (None, 512)
 
         # FC Decoder
         net = self.fc2(embedding)  # (None, 512)
         net = self.fc3(net)  # (None, 512)
         net = self.fc4(net)  # (None, 1536)
-        pc_fc = tf.reshape(net, [-1, -1, 3])  # (None, 512, 3)
+        pc_fc = tf.reshape(net, [-1, 512, 3])  # (None, 512, 3)
 
         # UPCONV Decoder
-        net = tf.reshape(embedding, [1, 1, -1])  # (None, 1, 1, 512)
-        net = conv2d_transpose(net, 512, kernel_size=(2, 2), stride=(1, 1))  # Output shape: (None, 2, 2, 512)
-        net = conv2d_transpose(net, 256, kernel_size=(3, 3), stride=(1, 1))  # Output shape: (None, 4, 4, 256)
-        net = conv2d_transpose(net, 256, kernel_size=(4, 4), stride=(2, 2))  # Output shape: (None, 10, 10, 256)
-        net = conv2d_transpose(net, 128, kernel_size=(5, 5), stride=(3, 3))  # Output shape: (None, 32, 32, 128)
-        net = Conv2DTranspose(3, (1, 1), strides=(1, 1))(net) # Output shape: (None, 32, 32, 3)
+        net = tf.reshape(embedding, [-1, 1, 1, embedding.shape[1]])  # (None, 1, 1, 512)
+        net = self.upconv1(net)  # (32, 2, 2, 512)
+        net = self.upconv2(net)  # (32, 4, 4, 256)
+        net = self.upconv3(net)  # (32, 6, 6, 128)
+        net = self.upconv4(net)  # (32, 16, 16, 64)
+        net = self.upconv5(net)  # (32, 16, 16, 6)
+        pc_upconv = tf.reshape(net, [-1, 512, 3])  # (32, 512, 3)
 
-        # TODO : Remove these two lines after getting the last Conv2DTranspose layer compatible with Reshape((half_num_point, 3))(net)
-        # The following two layers are added
-        net = Flatten()(net) # (None, 3072)
-        net = Dense(half_num_point * 3)(net) # (None, 1536)
-        pc_upconv = Reshape((half_num_point, 3))(net) # (None, 512, 3)
-
+        # Set union
+        net = tf.concat(values=[pc_fc, pc_upconv], axis=1)
+        print(f'concat: {net.shape}')  #  (32, 1024, 3)
 
         return net
 

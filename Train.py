@@ -25,7 +25,7 @@ sys.path.append(os.path.join(BASE_DIR, 'Model/Decoder'))
 sys.path.append(os.path.join(BASE_DIR, 'Model/Encoder'))
 
 from PN2_MSG import PointNet2Encoder
-from FP_UPCONV import PointNet2Decoder
+from FC_UPCONV import PointNet2Decoder
 
 from tensorflow.keras.optimizers import Adam
 #from EMDLoss import EMDLoss
