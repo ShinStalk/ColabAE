@@ -178,9 +178,8 @@ class PointNetSAModule(Layer):
             use_xyz: bool, if True concat XYZ with local point features, otherwise just use point features
             use_nchw: bool, if True, use NCHW data format for conv2d, which is usually faster than NHWC format
     '''
-    def __init__(self, points, npoint, radius, nsample, mlp, scope, bn_decay=None, mlp2=None, group_all=False,  bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False, **kwargs):
+    def __init__(self, npoint, radius, nsample, mlp, scope, bn_decay=None, mlp2=None, group_all=False,  bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False, **kwargs):
         super(PointNetSAModule, self).__init__(**kwargs)
-        self.points = points
         self.npoint = npoint
         self.radius = radius
         self.nsample = nsample
@@ -214,7 +213,7 @@ class PointNetSAModule(Layer):
                                       data_format=data_format)
                 )
 
-    def call(self, xyz, **kwargs):
+    def call(self, xyz, points, **kwargs):
         '''
             Input:
                 xyz: (batch_size, ndataset, 3) TF tensor
@@ -226,9 +225,9 @@ class PointNetSAModule(Layer):
         # Sample and Grouping
         if self.group_all:
             self.nsample = xyz.shape[1]
-            new_xyz, new_points, idx, grouped_xyz = sample_and_group_all(xyz, self.points, self.use_xyz)
+            new_xyz, new_points, idx, grouped_xyz = sample_and_group_all(xyz, points, self.use_xyz)
         else:
-            new_xyz, new_points, idx, grouped_xyz = sample_and_group(self.npoint, self.radius, self.nsample, xyz, self.points, self.knn, self.use_xyz)
+            new_xyz, new_points, idx, grouped_xyz = sample_and_group(self.npoint, self.radius, self.nsample, xyz, points, self.knn, self.use_xyz)
 
         # Point Feature Embedding
         new_points = tf.transpose(new_points, perm=[0, 3, 1, 2]) if self.use_nchw else new_points
@@ -279,7 +278,7 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
             use_nchw: bool, if True, use NCHW data format for conv2d, which is usually faster than NHWC format
         Return:
             new_xyz: (batch_size, npoint, 3) TF tensor
-            new_points: (batch_size, npoint, \sum_k{mlp[k][-1]}) TF tensor
+            new_points: (batch_size, npoint, sum_k{mlp[k][-1]}) TF tensor
     '''
     data_format = 'NCHW' if use_nchw else 'NHWC'
     with tf.compat.v1.variable_scope(scope) as sc:
@@ -309,6 +308,69 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
         new_points_concat = tf.concat(new_points_list, axis=-1)
         return new_xyz, new_points_concat
 
+''' PointNet Multi-Scale Grouping Set Abstraction (SA) Module '''
+class PointNetSAModuleMSG(Layer):
+    ''' PointNet Set Abstraction (SA) module with Multi-Scale Grouping (MSG)
+        Input:
+            xyz: (batch_size, ndataset, 3) TF tensor
+            points: (batch_size, ndataset, channel) TF tensor
+            npoint: int32 -- #points sampled in farthest point sampling
+            radius: list of float32 -- search radius in local region
+            nsample: list of int32 -- how many points in each local region
+            mlp: list of list of int32 -- output size for MLP on each point
+            use_xyz: bool, if True concat XYZ with local point features, otherwise just use point features
+            use_nchw: bool, if True, use NCHW data format for conv2d, which is usually faster than NHWC format
+    '''
+    def __init__(self, npoint, radius_list, nsample_list, mlp_list, bn_decay, scope, bn=True, use_xyz=True, use_nchw=False, **kwargs):
+        super(PointNetSAModuleMSG, self).__init__(**kwargs)
+        self.npoint = npoint
+        self.radius_list = radius_list
+        self.nsample_list = nsample_list
+        self.mlp_list = mlp_list
+        self.scope = scope
+        self.bn_decay = bn_decay
+        self.bn = bn
+        self.use_xyz = use_xyz
+        self.use_nchw = use_nchw
+
+        self.conv2d_layers = []
+        for i in range(len(self.radius_list)):
+            self.conv2d_layers.append([])
+            for j, num_out_channel in enumerate(self.mlp_list[i]):
+                self.conv2d_layers[i].append(
+                    tf_util.conv2d_v2(num_out_channel, [1, 1],
+                                      padding='VALID', stride=[1, 1], bn=self.bn,
+                                      scope=self.scope + '_conv%d_%d' % (i, j), bn_decay=self.bn_decay)
+                )
+
+    '''
+        Return:
+            new_xyz: (batch_size, npoint, 3) TF tensor
+            new_points: (batch_size, npoint, sum_k{mlp[k][-1]}) TF tensor
+    '''
+    def call(self, xyz, points, **kwargs):
+        new_xyz = gather_point(xyz, farthest_point_sample(self.npoint, xyz))
+        new_points_list = []
+        for i in range(len(self.radius_list)):
+            radius = self.radius_list[i]
+            nsample = self.nsample_list[i]
+            idx, pts_cnt = query_ball_point(radius, nsample, xyz, new_xyz)
+            grouped_xyz = group_point(xyz, idx)
+            grouped_xyz -= tf.tile(tf.expand_dims(new_xyz, 2), [1,1,nsample,1])
+            if points is not None:
+                grouped_points = group_point(points, idx)
+                if self.use_xyz:
+                    grouped_points = tf.concat([grouped_points, grouped_xyz], axis=-1)
+            else:
+                grouped_points = grouped_xyz
+            if self.use_nchw: grouped_points = tf.transpose(a=grouped_points, perm=[0,3,1,2])
+            for j, num_out_channel in enumerate(self.mlp_list[i]):
+                grouped_points = self.conv2d_layers[i][j](grouped_points)
+            if self.use_nchw: grouped_points = tf.transpose(a=grouped_points, perm=[0,2,3,1])
+            new_points = tf.reduce_max(input_tensor=grouped_points, axis=[2])
+            new_points_list.append(new_points)
+        new_points_concat = tf.concat(new_points_list, axis=-1)
+        return new_xyz, new_points_concat
 
 def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, bn_decay, scope, bn=True):
     ''' PointNet Feature Propogation (FP) Module
@@ -391,6 +453,7 @@ class PointNetFPModule(Layer):
 
         intermediate_results = [new_points1]
         for layer in self.conv2d_layers:
+            print(f'{self.scope} intermediate_results[-1]: {intermediate_results[-1].shape}')
             intermediate_results.append(layer(intermediate_results[-1]))
 
         return tf.squeeze(intermediate_results[-1], [2])  # (batch_size, npoints, mlp2[-1])

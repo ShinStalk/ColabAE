@@ -25,8 +25,9 @@ class PointNet:
         net = tf2_conv2d(net, 1024, (1, 1))
 
         global_feat = MaxPooling2D(pool_size=(num_point, 1))(net)
-
+        print(f'global_feat: {global_feat.shape}')
         net = Reshape((-1,))(global_feat)
+        print(f'net: {net.shape}')
 
         return Model(inputs=self.input, outputs=net)
 

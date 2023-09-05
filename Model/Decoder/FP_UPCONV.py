@@ -30,16 +30,13 @@ class PointNet2Decoder(Model):
 
     self.max_pooling = MaxPooling2D(pool_size=(self.encoder.num_point, 1))
 
-  def call(self, inputs, **kwargs):
+  def call(self, xyz_input, points_input, **kwargs):
     # Feature Propagation layers
-    # self.xyz[1], self.points[1], _ = self.pointnet_sa_layer1(self.xyz[0]) # xyz[1]: (32, 1024, 3), points[1]: (32, 1024, 64)
-    # self.xyz[2], self.points[2], _ = self.pointnet_sa_layer2(self.xyz[1]) # xyz[2]: (32, 512, 3), points[2]: (32, 512, 128)
-    # self.xyz[3], self.points[3], _ = self.pointnet_sa_layer3(self.xyz[2]) # xyz[3]: (32, 256, 3), points[3]: (32, 256, 256)
-    # self.xyz[4], self.points[4], _ = self.pointnet_sa_layer4(self.xyz[3]) # xyz[4]: (32, 128, 3), points[4]: (32, 128, 512)
-
-    self.points1[3] = self.pointnet_fp_layer1(self.encoder.xyz[3], self.encoder.xyz[4], self.encoder.points[3], self.encoder.points[4]) # points1[3]: (32, 256, 256)
-    self.points1[2] = self.pointnet_fp_layer2(self.encoder.xyz[2], self.encoder.xyz[3], self.encoder.points[2], self.points1[3]) # points1[2]: (32, 512, 256)
-    self.points1[1] = self.pointnet_fp_layer3(self.encoder.xyz[1], self.encoder.xyz[2], self.encoder.points[1], self.points1[2]) # points1[1]: (32, 1024, 128)
+    #self.points1[3] = self.pointnet_fp_layer1(self.encoder.xyz[3], self.encoder.xyz[4], self.encoder.points[3], self.encoder.points[4]) # points1[3]: (32, 256, 256)
+    self.points1[2] = self.pointnet_fp_layer2(self.encoder.xyz[2], xyz_input, self.encoder.points[2], points_input) # points1[2]: (32, 128, 256)
+    print(f'points1[2]: {self.points1[2].shape}')
+    self.points1[1] = self.pointnet_fp_layer3(self.encoder.xyz[1], self.encoder.xyz[2], self.encoder.points[1], self.points1[2]) # points1[1]: (32, 512, 128)
+    print(f'points1[1]: {self.points1[1].shape}')
     point_features = self.pointnet_fp_layer4(self.encoder.xyz[0], self.encoder.xyz[1], self.encoder.points[0], self.points1[1]) # points1[0]: (32, 1024, 128)
 
 

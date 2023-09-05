@@ -16,19 +16,15 @@ point_clouds = np.stack(point_clouds)
 
 import tensorflow as tf
 from keras import Model
-from keras.layers import Dense, Lambda, Dropout
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 BASE_DIR = os.path.abspath('')
-sys.path.append(os.path.join(BASE_DIR, 'Utils'))
 sys.path.append(os.path.join(BASE_DIR, 'Loss'))
 sys.path.append(os.path.join(BASE_DIR, 'Model/Decoder'))
 sys.path.append(os.path.join(BASE_DIR, 'Model/Encoder'))
 
-from pointnet_util import PointNetSAModule, PointNetFPModule
-
-from PointNet2_SA import PointNet2Encoder
+from PN2_MSG import PointNet2Encoder
 from FP_UPCONV import PointNet2Decoder
 
 from tensorflow.keras.optimizers import Adam
@@ -43,8 +39,8 @@ class PointNet2AE(Model):
     #self.decoder_model = FC(input_shape[1])
 
   def call(self, inputs):
-    encoded_tensor = self.encoder_model(inputs)
-    decoded_tensor = self.decoder_model(encoded_tensor)
+    xyz, points = self.encoder_model(inputs)
+    decoded_tensor = self.decoder_model(xyz, points)
     return decoded_tensor
 
 
@@ -52,13 +48,8 @@ if __name__ == "__main__":
   ae_model = PointNet2AE(point_clouds.shape[1:], 128)
   ae_model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss=ChamferDistanceLoss())
 
-  # Tensorboard
-  import datetime
-  log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-  tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-
   # Train the model
-  history = ae_model.fit(point_clouds, point_clouds, epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[tensorboard_callback])
+  history = ae_model.fit(point_clouds, point_clouds, epochs=EPOCHS, batch_size=BATCH_SIZE)
 
   # plot training history
   import matplotlib.pyplot as plt

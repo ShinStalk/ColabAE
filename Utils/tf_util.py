@@ -6,7 +6,8 @@ Date: November 2017
 
 import numpy as np
 import tensorflow as tf
-from keras.layers import Conv2D, Conv2DTranspose, Dense, BatchNormalization, Activation, Layer
+from keras.layers import Conv2D, Conv2DTranspose, Dense, BatchNormalization, Activation, Layer, Dropout
+
 
 def _variable_on_cpu(name, shape, initializer, use_fp16=False):
   """Helper to create a Variable stored on CPU memory.
@@ -222,7 +223,6 @@ class conv2d_v2(Layer):
         initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform") if self.use_xavier else tf.keras.initializers.TruncatedNormal(stddev=self.stddev)
 
         # Creating kernel and biases
-        # print('weights_'+self.scope)
         self.kernel = self.add_weight(name='weights_'+self.scope, shape=kernel_shape, initializer=initializer, trainable=True)
         self.biases = self.add_weight(name='biases_'+self.scope, shape=[self.num_output_channels], initializer=tf.keras.initializers.Zeros(), trainable=True)
 
@@ -280,11 +280,16 @@ def conv2d_transpose(inputs,
       num_in_channels = inputs.shape[-1]
       kernel_shape = [kernel_h, kernel_w,
                       num_output_channels, num_in_channels] # reversed to conv2d
-      kernel = _variable_with_weight_decay('weights',
-                                           shape=kernel_shape,
-                                           use_xavier=use_xavier,
-                                           stddev=stddev,
-                                           wd=weight_decay)
+
+      # Selecting the initializer based on use_xavier
+      if use_xavier:
+          initializer = tf.compat.v1.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform")
+      else:
+          initializer = tf.compat.v1.truncated_normal_initializer(stddev=stddev)
+
+      # Creating kernel variable directly
+      kernel = tf.Variable(initializer(shape=kernel_shape), name='weights')
+
       stride_h, stride_w = stride
       
       # from slim.convolution2d_transpose
@@ -317,7 +322,84 @@ def conv2d_transpose(inputs,
         outputs = activation_fn(outputs)
       return outputs
 
-   
+
+class conv2d_transpose_v2(Layer):
+    def __init__(self,
+                 num_output_channels,
+                 kernel_size,
+                 scope,
+                 stride=[1, 1],
+                 padding='SAME',
+                 use_xavier=True,
+                 stddev=1e-3,
+                 activation_fn=tf.nn.relu,
+                 bn=False,
+                 bn_decay=None, **kwargs):
+
+        super(conv2d_transpose_v2, self).__init__(name=scope, **kwargs)
+        self.num_output_channels = num_output_channels
+        self.kernel_size = kernel_size
+        self.scope = scope
+        self.stride = stride
+        self.padding = padding
+        self.use_xavier = use_xavier
+        self.stddev = stddev
+        self.activation_fn = activation_fn
+        self.bn = bn
+        self.bn_decay = bn_decay
+        self.kernel = None
+        self.biases = None
+        if self.bn:
+            self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
+
+    def build(self, input_shape):
+        kernel_h, kernel_w = kernel_size
+        num_in_channels = input_shape[-1]
+        kernel_shape = [kernel_h, kernel_w,
+                        num_output_channels, num_in_channels]  # reversed to conv2d
+
+        # Selecting the initializer based on use_xavier
+        initializer = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform") if self.use_xavier else tf.keras.initializers.TruncatedNormal(
+            stddev=self.stddev)
+
+        # Creating kernel and biases
+        self.kernel = self.add_weight(name='weights_' + self.scope, shape=kernel_shape, initializer=initializer, trainable=True)
+        self.biases = self.add_weight(name='biases_' + self.scope, shape=[self.num_output_channels], initializer=tf.keras.initializers.Zeros(), trainable=True)
+
+        super(conv2d_transpose_v2, self).build(input_shape)
+
+        stride_h, stride_w = stride
+
+        # from slim.convolution2d_transpose
+        def get_deconv_dim(dim_size, stride_size, kernel_size, padding):
+            dim_size *= stride_size
+
+            if padding == 'VALID' and dim_size is not None:
+                dim_size += max(kernel_size - stride_size, 0)
+            return dim_size
+
+        # caculate output shape
+        batch_size = inputs.shape[0]
+        height = inputs.shape[1]
+        width = inputs.shape[2]
+        out_height = get_deconv_dim(height, stride_h, kernel_h, padding)
+        out_width = get_deconv_dim(width, stride_w, kernel_w, padding)
+        output_shape = [batch_size, out_height, out_width, num_output_channels]
+
+        outputs = tf.nn.conv2d_transpose(inputs, kernel, output_shape,
+                                         [1, stride_h, stride_w, 1],
+                                         padding=padding)
+        biases = _variable_on_cpu('biases', [num_output_channels],
+                                  tf.compat.v1.constant_initializer(0.0))
+        outputs = tf.nn.bias_add(outputs, biases)
+
+        if bn:
+            outputs = batch_norm_for_conv2d(outputs, bn_decay=bn_decay)
+
+        if activation_fn is not None:
+            outputs = activation_fn(outputs)
+        return outputs
+
 
 def conv3d(inputs,
            num_output_channels,
@@ -557,50 +639,6 @@ def avg_pool3d(inputs,
     return outputs
 
 
-def batch_norm_template_unused(inputs, is_training, scope, moments_dims, bn_decay):
-  """ NOTE: this is older version of the util func. it is deprecated.
-  Batch normalization on convolutional maps and beyond...
-  Ref.: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
-  
-  Args:
-      inputs:        Tensor, k-D input ... x C could be BC or BHWC or BDHWC
-      is_training:   boolean tf.Varialbe, true indicates training phase
-      scope:         string, variable scope
-      moments_dims:  a list of ints, indicating dimensions for moments calculation
-      bn_decay:      float or float tensor variable, controling moving average weight
-  Return:
-      normed:        batch-normalized maps
-  """
-  with tf.compat.v1.variable_scope(scope) as sc:
-    num_channels = inputs.shape[-1]
-    beta = _variable_on_cpu(name='beta',shape=[num_channels],
-                            initializer=tf.compat.v1.constant_initializer(0))
-    gamma = _variable_on_cpu(name='gamma',shape=[num_channels],
-                            initializer=tf.compat.v1.constant_initializer(1.0))
-    batch_mean, batch_var = tf.nn.moments(x=inputs, axes=moments_dims, name='moments')
-    decay = bn_decay if bn_decay is not None else 0.9
-    ema = tf.train.ExponentialMovingAverage(decay=decay)
-    # Operator that maintains moving averages of variables.
-    # Need to set reuse=False, otherwise if reuse, will see moments_1/mean/ExponentialMovingAverage/ does not exist
-    # https://github.com/shekkizh/WassersteinGAN.tensorflow/issues/3
-    with tf.compat.v1.variable_scope(tf.compat.v1.get_variable_scope(), reuse=False):
-        ema_apply_op = tf.cond(pred=is_training,
-                               true_fn=lambda: ema.apply([batch_mean, batch_var]),
-                               false_fn=lambda: tf.no_op())
-    
-    # Update moving average and return current batch's avg and var.
-    def mean_var_with_update():
-      with tf.control_dependencies([ema_apply_op]):
-        return tf.identity(batch_mean), tf.identity(batch_var)
-    
-    # ema.average returns the Variable holding the average of var.
-    mean, var = tf.cond(pred=is_training,
-                        true_fn=mean_var_with_update,
-                        false_fn=lambda: (ema.average(batch_mean), ema.average(batch_var)))
-    normed = tf.nn.batch_normalization(inputs, mean, var, beta, gamma, 1e-3)
-  return normed
-
-
 def batch_norm_template(inputs, bn_decay):
   """ Batch normalization on convolutional maps and beyond...
   Ref.: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
@@ -720,25 +758,3 @@ def tf2_fully_connected(inputs, num_outputs):
     dense_layer = Activation('relu')(dense_layer)
 
     return dense_layer
-
-
-class CustomKerasDense(Layer):
-    def __init__(self, num_outputs, activation=None, bn=True):
-        super().__init__()
-        self.activation = activation
-        self.bn = bn
-
-        self.dense_layer = Dense(num_outputs)
-        if bn:
-            self.batch_norm = BatchNormalization()
-        if activation is not None:
-            self.activation_layer = Activation(activation)
-
-    def call(self, inputs, **kwargs):
-        output = self.dense_layer(inputs)
-        if self.bn:
-            output = self.batch_norm(output)
-        if self.activation is not None:
-            output = self.activation_layer(output)
-
-        return output
