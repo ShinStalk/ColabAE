@@ -380,7 +380,7 @@ class conv2d_transpose_v2(Layer):
             return dim_size
 
         # caculate output shape
-        batch_size = inputs.shape[0]
+        batch_size = inputs.shape[0] if inputs.shape[0] is not None else 1
         height = inputs.shape[1]
         width = inputs.shape[2]
         out_height = get_deconv_dim(height, stride_h, kernel_h, self.padding)

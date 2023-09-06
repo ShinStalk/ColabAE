@@ -10,24 +10,23 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, 'Model/Encoder'))
 sys.path.append(os.path.join(BASE_DIR, 'Model/Decoder'))
 
-from FP_FC import PointNet2Decoder
-from PointNet2_SA import PointNet2Encoder
+from PN2_MSG import PointNet2Encoder
+from FC_UPCONV import PointNet2Decoder
 
 NB_OF_POINTS = 1024
 BATCH_SIZE = 32
-EPOCHS = 100
-LEARNING_RATE = 0.0001
+EPOCHS = 50
+LEARNING_RATE = 0.001
 
 class PointNet2AE(Model):
   def __init__(self, input_shape, latent_dim):
     super(PointNet2AE, self).__init__()
     self.encoder_model = PointNet2Encoder(input_shape, 128, 0.99)
     self.decoder_model = PointNet2Decoder(self.encoder_model, 0.99)
-    #self.decoder_model = FC(input_shape[1])
 
   def call(self, inputs):
-    encoded_tensor = self.encoder_model(inputs)
-    decoded_tensor = self.decoder_model(encoded_tensor)
+    xyz, points = self.encoder_model(inputs)
+    decoded_tensor = self.decoder_model(xyz, points)
     return decoded_tensor
 
 class MySceneViewer(SceneViewer):
@@ -40,31 +39,7 @@ class MySceneViewer(SceneViewer):
         point_clouds = [np.load(pc_file) for pc_file in point_cloud_files]
         self.point_clouds = np.stack(point_clouds)
 
-        # Assuming all point clouds have the same shape
-        input_shape = point_clouds[0].shape
-        print(f'visualizer input_shape: {input_shape}')
-
-        self.autoencoder_model = PointNet2AE(input_shape, 128)
-        self.autoencoder_model.build(input_shape=input_shape)
-
-        # # Encoder
-        # print(f'point_clouds[0].shape: {input_shape}')
-        # self.encoder_model = PointNet2Encoder(input_shape, 128, 0.99)
-        #
-        # # Decoder
-        # print(f'FC input_shape: {input_shape}')
-        # self.decoder_model = PointNet2Decoder(self.encoder_model, 0.99)
-        # # self.decoder_model = FC(input_shape[1])
-        #
-        # # Create the autoencoder model
-        # input_point_cloud = Input(shape=input_shape)
-        # encoded = self.encoder_model(input_point_cloud)
-        # decoded = self.decoder_model(encoded)
-        # self.autoencoder_model = Model(inputs=input_point_cloud, outputs=decoded)
-
-        # Load model weights
-        weight_file = 'Weights/PN2_SA_FP_EMD_' + str(EPOCHS) + 'EP_' + '{:.0e}'.format(LEARNING_RATE) + 'LR_' + str(BATCH_SIZE) + 'BS_' + str(NB_OF_POINTS) + 'PT.h5'
-        self.autoencoder_model.load_weights(weight_file)
+        self.autoencoder_model = PointNet2AE(self.point_clouds[0].shape, 128)
 
         self.display_scene()
 
@@ -72,12 +47,22 @@ class MySceneViewer(SceneViewer):
 
 
     def display_scene(self):
+        print(f'display_scene')
+        self.autoencoder_model.build((BATCH_SIZE,) + self.point_clouds[0].shape)
+
+        # Load model weights
+        weight_file = 'Weights/PN2_MSG_FCUPCONV_EMD_' + str(EPOCHS) + 'EP_' + '{:.0e}'.format(LEARNING_RATE) + 'LR_' + str(BATCH_SIZE) + 'BS_' + str(NB_OF_POINTS) + 'PT.h5'
+        self.autoencoder_model.load_weights(weight_file)
+
+        print(f'weights loaded')
+
         list = [2330, 1700, 5184, 4427, 3746, 1789, 2342, 3360, 4238, 3428, 621, 4620]
         x_margin = 0
         sceneDict = {}
         for id in list:
             point_cloud = self.point_clouds[id]
 
+            print(f'predict point_cloud: {point_cloud.shape}')
             # Predict the selected point cloud
             decoded_point_cloud = self.autoencoder_model.predict(np.expand_dims(point_cloud, axis=0))
 
