@@ -508,7 +508,6 @@ class fully_connected_v2(Layer):
             self.bn_layer = BatchNormalization(momentum=0.99, scale=True, center=True)
 
     def build(self, input_shape):
-        print(f'build fc input_shape: {input_shape}')
         num_input_units = input_shape[-1]
 
         # Initializing the weights
@@ -523,7 +522,6 @@ class fully_connected_v2(Layer):
         super(fully_connected_v2, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
-        print(f'call fc inputs.shape: {inputs.shape}')
         outputs = tf.matmul(inputs, self._weights)
         outputs = outputs + self._biases
 
